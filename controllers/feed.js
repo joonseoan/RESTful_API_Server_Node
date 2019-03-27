@@ -1,4 +1,6 @@
 const { validationResult } = require('express-validator/check');
+const fs = require('fs');
+const path = require('path');
 
 const Post = require('../models/post');
 
@@ -16,21 +18,50 @@ exports.getPosts = (req, res, next) => {
     // json({}) is only for responding(sending) toward the client.!!!!!!
     //   not receiving the request from the client
 
-    // shall add status code if it is not "200" which is default value.
-    res.status(200).json({ 
-        posts: [
-            {
-                _id: '1', 
-                title: 'First Post', 
-                content: 'This is the first post.',
-                imageUrl: 'images/lady.PNG',
-                creator: {
-                    name: 'Joon'
-                },
-                createdAt: new Date()
+    Post.find()
+        .then(posts => {
+            if(!posts) {
+                const error = new Error('Unable to find the post list.');
+                error.statusCode = 422;
+                throw error;
             }
-        ]
-    });
+
+            res.status(200).json({
+                message: 'successfully fetched the post list.',
+                posts
+            });
+        })
+        .catch(e => {
+
+            console.log('e at catch:', e);
+
+            if(!e.statusCode) {
+                // server side error
+                e.statusCode = 500;
+            }
+
+            // need next to get to central errorhanding at routes.
+            next(e);
+
+        })
+
+
+    // 1) Dummy
+    // shall add status code if it is not "200" which is default value.
+    // res.status(200).json({ 
+    //     posts: [
+    //         {
+    //             _id: '1', 
+    //             title: 'First Post', 
+    //             content: 'This is the first post.',
+    //             imageUrl: 'images/lady.PNG',
+    //             creator: {
+    //                 name: 'Joon'
+    //             },
+    //             createdAt: new Date()
+    //         }
+    //     ]
+    // });
 };
 
 // body-parsor needed to get the client's request.
@@ -75,11 +106,24 @@ exports.createPost = (req, res, next) => {
         //     }
         // );
     }
+
+    if(!req.file) {
+        const error = new Error('Unable to get image file.');
+        error.statusCode = 422;
+        throw error;
+    }
+
+    console.log('req.file: ', req.file);
+
     const title = req.body.title;
     const content = req.body.content;
+    // when using OSX
+    // const imageUrl = req.file.path;
+    const imageUrl = req.file.path.replace("\\" ,"/");
+
     const post = new Post({
         title,
-        imageUrl: 'images/lady.PNG', // for the moment
+        imageUrl,
         content,
         creator: { name: 'Max' }
     });
@@ -129,3 +173,109 @@ exports.createPost = (req, res, next) => {
 //         }
 //     });
 }
+
+exports.getPost = ((req, res, next) => {
+    const postId = req.params.postId;
+    Post.findById(postId)
+        .then(post => {
+            // if(!post) throw new Error('Unable  to find the post.');
+            if(!post) {
+                const error = new Error('Unable to find post.');
+                error.statusCode = 404;
+                throw error;
+            }
+
+            res.status(200).json({ 
+                message: 'The post successfully fetched.',
+                post 
+            });
+
+        })
+        .catch(e => {
+
+            if(!e.statusCode) {
+                e.statusCode = 500;
+            }
+
+            next(e);
+
+        });
+
+});
+
+exports.updatePost = (req, res, next) => {
+
+    const postId = req.params.postId;
+    const errors = validationResult(req);
+
+    if(!errors.isEmpty()) {
+        const error = new Error('Validation Failed. Entered data is incorrect.');
+        error.statusCode = 422;
+        throw error;
+    }
+
+    const { title, content } = req.body;
+    
+    // when the user does not select a file (empty)
+    //  but the existing image is available. (test it)
+
+    // It is from state value of react which is stored.
+    let imageUrl = req.body.image;
+
+    console.log('imageUrl: ', imageUrl);
+    // console.log('req.file.path', req.file);
+
+    // when the user selects a new file.
+    if(req.file) {
+        imageUrl = req.file.path.replace("\\" ,"/");
+    }
+
+    if(!imageUrl) {
+        const error = new Error('Unable to find image Error');
+        error.statusCode = 422;
+        throw error;
+    }
+
+    Post.findById(postId)
+        .then(post => {
+            if(!post) {
+                const error = new Error('Unable to find the post to be updated.');
+                error.statusCode = 422;
+                throw error;
+            }
+            // the existing url should be deleted (because it is not necessary),
+            //  if the new image path is entered.
+            if(imageUrl !== post.imageUrl) {
+                clearImage(post.imageUrl);
+            }
+
+            post.title = title;
+            post.imageUrl = imageUrl;
+            post.content = content;
+
+            return post.save();
+        })
+        .then(updatedPost => {
+
+            res.status(200).json({
+                message: 'successfully updated',
+                post: updatedPost
+            });
+
+        })
+        .catch(e => {
+            if(!e.statusCode) {
+                e.statusCode = 500;
+            }
+            next(e);
+        })
+};
+
+const clearImage = filePath => {
+    // filePath contains /images/fileName;
+    console.log('filePath argument in clearImage function', filePath)
+    filePath = path.join(__dirname, '..', filePath);
+    fs.unlink(filePath, err => {
+        console.log(err);
+    });
+};
