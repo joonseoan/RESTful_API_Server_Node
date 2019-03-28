@@ -5,12 +5,10 @@ const path = require('path');
 const multer = require('multer');
 const uuidv4 = require('uuid/v4')
 
-
-
 const feedRoutes = require('./routes/feed');
+const authRoutes = require('./routes/auth');
 const { mongoKey } = require('./config/keys');
 const Mongo_URI = `mongodb+srv://joon:${mongoKey}@firstatlas-drwhc.mongodb.net/messages`;
-
 
 const app = express();
 // for incomming data!!!! based on json.
@@ -62,13 +60,17 @@ app.use((req, res, next) => {
 });
 
 app.use('/feed', feedRoutes);
+app.use('/auth', authRoutes);
 
 // errors because of "next(e)"
 app.use((error, req, res, next) => {
     console.log('error in server.js', error);
     const status = error.statusCode || 500;
     const message = error.message;
-    res.status(status).json({ message });
+    // because "error.data = errors.array();" in signup in auth controllers.
+    // It is an array.
+    const data = error.data;
+    res.status(status).json({ message, data });
 });
 
 mongoose

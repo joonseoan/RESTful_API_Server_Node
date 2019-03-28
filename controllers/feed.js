@@ -17,9 +17,31 @@ exports.getPosts = (req, res, next) => {
 
     // json({}) is only for responding(sending) toward the client.!!!!!!
     //   not receiving the request from the client
+    
+    // 2) With Pagination
+    // "query": built-in req method.
+    // It is because requesting url in frontend
+    //   is "http://localhost:8080/feed/posts?page=pageNumber"
+    // "|| 1": in case that req.query.page is not definded
+    const currentPage= req.query.page || 1;
+    const perPage = 2;
+    let totalItems;
 
+    // Total number of documents === total posts that is posted.
+    // "countDocuments" : counts the total number of posts.
     Post.find()
+        .countDocuments()
+        .then(count => {
+            totalItems = count;
+            return Post.find()
+                // when currentPage 1 => skip 0 posts
+                // when currentPage 2 => skip 0, 1 then starts element 2 in an array
+                // when currentPage 3 => skip 0, 1, 2, 3 then starts element 4 in an arry
+                .skip((currentPage - 1) * perPage)
+                .limit(perPage);
+        })
         .then(posts => {
+            console.log('posts => only 2 posts with skip number', posts)
             if(!posts) {
                 const error = new Error('Unable to find the post list.');
                 error.statusCode = 422;
@@ -28,22 +50,48 @@ exports.getPosts = (req, res, next) => {
 
             res.status(200).json({
                 message: 'successfully fetched the post list.',
-                posts
+                posts,
+                // totalItems is defined in fronEnd.
+                totalItems
             });
+            
         })
         .catch(e => {
 
-            console.log('e at catch:', e);
-
             if(!e.statusCode) {
-                // server side error
                 e.statusCode = 500;
             }
-
-            // need next to get to central errorhanding at routes.
             next(e);
 
-        })
+        });
+
+    // 1) Since we addded pagination
+    // Post.find()
+    //     .then(posts => {
+    //         if(!posts) {
+    //             const error = new Error('Unable to find the post list.');
+    //             error.statusCode = 422;
+    //             throw error;
+    //         }
+
+    //         res.status(200).json({
+    //             message: 'successfully fetched the post list.',
+    //             posts
+    //         });
+    //     })
+    //     .catch(e => {
+
+    //         console.log('e at catch:', e);
+
+    //         if(!e.statusCode) {
+    //             // server side error
+    //             e.statusCode = 500;
+    //         }
+
+    //         // need next to get to central errorhanding at routes.
+    //         next(e);
+
+    //     });
 
 
     // 1) Dummy
@@ -117,6 +165,7 @@ exports.createPost = (req, res, next) => {
 
     const title = req.body.title;
     const content = req.body.content;
+
     // when using OSX
     // const imageUrl = req.file.path;
     const imageUrl = req.file.path.replace("\\" ,"/");
@@ -269,6 +318,40 @@ exports.updatePost = (req, res, next) => {
             }
             next(e);
         })
+};
+
+exports.deletePost= (req, res, next) => {
+    const postId = req.params.postId;
+
+    // to verify the post is availablefirst.
+    //  so that fidndByIdAndRemove is not used here.
+    Post.findById(postId)
+        .then(post => {
+            if(!post) {
+                const error = new Error('Unable to find the post to delete');
+                error.statusCode = 422;
+                throw error;
+            }
+
+            //check logged in user later on
+            clearImage(post.imageUrl);
+
+            return Post.findOneAndDelete({_id: postId});
+        
+        })
+        .then(post => {
+            res.status(200).json({
+                message: 'successfully deleted',
+               // post
+            });
+        })
+        .catch(e => {
+            if(!e.statusCode){
+                e.statusCode = 500;
+            }
+            next(e);
+        })
+
 };
 
 const clearImage = filePath => {
