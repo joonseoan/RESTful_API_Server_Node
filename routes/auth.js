@@ -5,6 +5,7 @@ const router = express.Router();
 
 const User = require('../models/user');
 const authControllers = require('../controllers/auth');
+const isAuthenticated = require('../middleware/is_auth');
 
 router.put('/signup', [
     body('email')
@@ -32,5 +33,17 @@ router.put('/signup', [
         .isEmpty()
 
 ], authControllers.signup);
+
+router.post('/login', authControllers.login);
+
+router.get('/getStatus', isAuthenticated, authControllers.getStatus);
+
+router.patch('/updateStatus', isAuthenticated, [
+    body('status')
+        .trim()
+        .not()
+        .isEmpty()
+
+], authControllers.updateStatus);
 
 module.exports = router;

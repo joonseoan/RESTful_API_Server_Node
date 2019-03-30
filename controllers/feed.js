@@ -2,7 +2,9 @@ const { validationResult } = require('express-validator/check');
 const fs = require('fs');
 const path = require('path');
 
+const isAuthenticated = require('../middleware/is_auth');
 const Post = require('../models/post');
+const User = require('../models/user');
 
 exports.getPosts = (req, res, next) => {
 
@@ -41,7 +43,7 @@ exports.getPosts = (req, res, next) => {
                 .limit(perPage);
         })
         .then(posts => {
-            console.log('posts => only 2 posts with skip number', posts)
+            // console.log('posts => only 2 posts with skip number', posts)
             if(!posts) {
                 const error = new Error('Unable to find the post list.');
                 error.statusCode = 422;
@@ -161,29 +163,53 @@ exports.createPost = (req, res, next) => {
         throw error;
     }
 
-    console.log('req.file: ', req.file);
+    // console.log('req.file: ', req.file);
+    const userId = req.userId;
 
     const title = req.body.title;
     const content = req.body.content;
 
     // when using OSX
     // const imageUrl = req.file.path;
-    const imageUrl = req.file.path.replace("\\" ,"/");
+    const imageUrl = req.file.path.replace("\\" ,"/");    
+    let creatorProfile;
+
+    if(!userId) {
+        const error = new Error('Unable to get userId to create post.');
+        error.statusCode = 422;
+        throw error;
+    }
 
     const post = new Post({
         title,
         imageUrl,
         content,
-        creator: { name: 'Max' }
+        creator: userId
     });
 
     post.save()
-        .then(post => {
+        .then(() => {
+            return User.findById(userId);    
+        })
+        .then(user => {
 
-            console.log('post: ', post)
+            if(!user) {
+                const error = new Error('Unable to find the user who posted');
+                error.statusCode = 422;
+                throw error;
+            }
+
+            // console.log('user: ==========> ', user)
+            creatorProfile = user;
+            user.posts = [ ...user.posts, post ];
+            return user.save();
+
+        })
+        .then(() => {
             res.status(201).json({
                 message: 'Post created successfully',
-                post 
+                post,
+                creator: { _id: creatorProfile._id, name: creatorProfile.name }
                 //{
                 //     _id: post._id,
                 //     title: post.title,
@@ -255,6 +281,7 @@ exports.getPost = ((req, res, next) => {
 exports.updatePost = (req, res, next) => {
 
     const postId = req.params.postId;
+    const userId = req.userId;
     const errors = validationResult(req);
 
     if(!errors.isEmpty()) {
@@ -292,6 +319,15 @@ exports.updatePost = (req, res, next) => {
                 error.statusCode = 422;
                 throw error;
             }
+
+            // Update will be enabled only with the user registered for.
+            // The different logged-in user is not able to update the post.
+            if(post.creator.toString() !== userId) {
+                const error = new Error('The post is not for the current logged-in user');
+                error.statusCode = 403;
+                throw error;
+            }
+
             // the existing url should be deleted (because it is not necessary),
             //  if the new image path is entered.
             if(imageUrl !== post.imageUrl) {
@@ -322,6 +358,7 @@ exports.updatePost = (req, res, next) => {
 
 exports.deletePost= (req, res, next) => {
     const postId = req.params.postId;
+    const userId = req.userId;
 
     // to verify the post is availablefirst.
     //  so that fidndByIdAndRemove is not used here.
@@ -333,11 +370,32 @@ exports.deletePost= (req, res, next) => {
                 throw error;
             }
 
+            // Update will be enabled only with the user registered for.
+            // The different logged-in user is not able to update the post.
+            if(post.creator.toString() !== userId) {
+                const error = new Error('The post is not for the current logged-in user');
+                error.statusCode = 403;
+                throw error;
+            }
+
             //check logged in user later on
             clearImage(post.imageUrl);
 
             return Post.findOneAndDelete({_id: postId});
         
+        })
+        .then(() => {
+            return User.findById(userId);
+        })
+        .then(user => {
+            // *********************************
+            // delete post in an array of "posts"
+            //  if the "ids" in the posts array
+            //  are same as "postID", an argument here. 
+            user.posts.pull(postId);
+
+            // Then, must save!!!!!!!!!!!!!!!!! again.
+            return user.save();
         })
         .then(post => {
             res.status(200).json({

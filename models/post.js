@@ -15,11 +15,16 @@ const postSchema = new Schema({
         type: String,
         required: true
     },
+    // creator: {
+    //     // type: Object will work as well******************
+    //    type: Object,
+    //    required: String
+    // },
     creator: {
-        // type: Object will work as well
-       type: Object,
-       required: String
-    },
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    }
   
 }, { 
     // mongoose will automaticall create time stamp!! like the ones below
