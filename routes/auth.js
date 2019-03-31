@@ -9,6 +9,7 @@ const isAuthenticated = require('../middleware/is_auth');
 
 router.put('/signup', [
     body('email')
+        .trim()
         .isEmail()
         .withMessage('Please enter a valid email')
         // callback!
@@ -34,7 +35,17 @@ router.put('/signup', [
 
 ], authControllers.signup);
 
-router.post('/login', authControllers.login);
+router.post('/login', [
+
+    body('email')
+        .trim()
+        .isEmail()
+        .withMessage('Please enter valid email.'),
+    body('password')
+        .trim()
+
+
+], authControllers.login);
 
 router.get('/getStatus', isAuthenticated, authControllers.getStatus);
 

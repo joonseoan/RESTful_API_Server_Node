@@ -6,7 +6,9 @@ const User = require('../models/user');
 
 exports.signup = (req, res, next) => {
     // add req to validationProcess and the get a result.
-    const errors = validationResult(req)
+    // errors is an object. Therefore, we can use isEmpty()!!!!
+    //  Just in case, we normally use .length for the aray.!!!!!!
+    const errors = validationResult(req);
     if(!errors.isEmpty()) {
         const error = new Error('Validation Failed.');
         error.StatusCode = 422;
@@ -24,6 +26,7 @@ exports.signup = (req, res, next) => {
                 password: hashedPassword,
                 name           
             });
+
             return user.save();
         })
         .then(newUser => {
@@ -46,11 +49,23 @@ exports.signup = (req, res, next) => {
 }
 
 exports.login = (req, res, next) => {
+    
+    const errors = validationResult(req);
+    console.log('erros: ', errors);
+    if(!errors.isEmpty()) {
+        const error = new Error('Login Validation failed');
+        error.statusCode = 422;
+        // object to an array!
+        error.data = errors.array();
+        throw error;
+    }
+
     const { email, password } = req.body;
     let loadedUser;
 
     User.findOne({ email })
         .then(user => {
+
             if(!user) {
                 const error = new Error('Unable to find your account.');
                 error.statusCode = 401;
@@ -58,6 +73,7 @@ exports.login = (req, res, next) => {
             }
 
             loadedUser = user;
+            // return boolean type
             return bcrypt.compare(password, user.password);
 
         })
@@ -95,9 +111,6 @@ exports.login = (req, res, next) => {
 
 exports.getStatus = (req, res, next) => {
     const userId = req.userId;
-
-    console.log('userId: ', userId)
-
     if(!userId) {
         const error = new Error('No logged-in user exists, now.');
         error.statusCode = 401;
@@ -105,29 +118,37 @@ exports.getStatus = (req, res, next) => {
     }
 
     User.findById(userId)
-            .then(user => {
-                if(!user) {
-                    const error = new Error('No logged-in user exists, now.');
-                    error.statusCode = 401;
-                    throw error;
-                }
-                res.status(200).json({
-                    status: user.status
-                });
-            })
-            .catch(e => {
-                if(!e.statusCode) {
-                    e.statusCode = 500;
-                }
-                next(e);
+        .then(user => {
+            if(!user) {
+                const error = new Error('No logged-in user exists, now.');
+                error.statusCode = 401;
+                throw error;
+            }
+            res.status(200).json({
+                status: user.status
             });
+        })
+        .catch(e => {
+            if(!e.statusCode) {
+                e.statusCode = 500;
+            }
+            next(e);
+        });
 }
 
 exports.updateStatus = (req, res, next) => {
+    const errors = validationResult(req);
+    if(!errors.isEmpty()) {
+        const error = new Error('Login Validation failed');
+        error.statusCode = 422;
+        // object to an array!
+        error.data = errors.array();
+        throw error;
+    }
+
     const { status } = req.body;
     User.findById(req.userId)
         .then(user => {
-
             if(!user) {
                 const error = new Error('No logged-in user exists, now.');
                 error.statusCode = 401;
@@ -135,7 +156,6 @@ exports.updateStatus = (req, res, next) => {
             }
             user.status = status;
             return user.save();
-            
         })
         .then(user => {
             if(!user) {
@@ -143,7 +163,6 @@ exports.updateStatus = (req, res, next) => {
                 error.statusCode = 401;
                 throw error;
             }
-
             res.status(200).json({
                 message: 'user updated!',
                 status: user.status
