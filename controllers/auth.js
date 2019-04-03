@@ -11,7 +11,7 @@ exports.signup = (req, res, next) => {
     const errors = validationResult(req);
     if(!errors.isEmpty()) {
         const error = new Error('Validation Failed.');
-        error.StatusCode = 422;
+        error.statusCode = 422;
         // errors.array(): make the error objects stored in an array
         error.data = errors.array();
         throw error;
@@ -169,8 +169,8 @@ exports.updateStatus = (req, res, next) => {
             });
         })
         .catch(e => {
-            if(!e.statuscode){
-                e.statuscode = 500;
+            if(!e.statusCode){
+                e.statusCode = 500;
             }
             next();
         })

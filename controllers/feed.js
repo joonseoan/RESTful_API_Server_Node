@@ -2,14 +2,13 @@ const { validationResult } = require('express-validator/check');
 const fs = require('fs');
 const path = require('path');
 
-const isAuthenticated = require('../middleware/is_auth');
 const Post = require('../models/post');
 const User = require('../models/user');
 
 exports.getPosts = (req, res, next) => {
 
     // Don't be confused with res.json(nothing)!!!!!
-    // It is to make the json format into javascript plain object provided by javascript engine, not from express
+    // It is to make the json format into javascript plain object, provided by javascript engine, not by express
 
     // json({}): express's built-in method to convert the object to json format.
     //  because http can't recognize object format, but json format.
@@ -29,13 +28,14 @@ exports.getPosts = (req, res, next) => {
     const perPage = 2;
     let totalItems;
 
-    // Total number of documents === total posts that is posted.
+    // Total number of documents === total posts that are posted.
     // "countDocuments" : counts the total number of posts.
     Post.find()
         .countDocuments()
         .then(count => {
             totalItems = count;
             return Post.find()
+                .populate('creator')
                 // when currentPage 1 => skip 0 posts
                 // when currentPage 2 => skip 0, 1 then starts element 2 in an array
                 // when currentPage 3 => skip 0, 1, 2, 3 then starts element 4 in an arry
@@ -96,7 +96,7 @@ exports.getPosts = (req, res, next) => {
     //     });
 
 
-    // 1) Dummy
+    // 1) with Dummy
     // shall add status code if it is not "200" which is default value.
     // res.status(200).json({ 
     //     posts: [
@@ -115,8 +115,7 @@ exports.getPosts = (req, res, next) => {
 };
 
 // body-parsor needed to get the client's request.
-//  because req's feields is always json in RESTUL API.
-// like in axios and fetch.
+//  because req's fields are always json in RESTUL API.
 // Remember, RESTFUL API does not use "form" in HTML
 //  which requires urlencoded in body-parser.
 exports.createPost = (req, res, next) => {
@@ -128,15 +127,13 @@ exports.createPost = (req, res, next) => {
         mapped: [Function],
         formatWith: [Function],
         throw: [Function] }
-    
     */
     // console.log('errors: ', errors);
     
     // isEmpty is a method of "errors"
     if(!errors.isEmpty()) {
-
-        // No need next(error) here because it is nto promise error.
-        // It is an error at expres routes
+        // No need next(error) here because it is not the promise error.
+        // It is an error at express routes
         console.log('errors from validation: ', errors);
 
         // 2) centralized error handling
@@ -144,12 +141,9 @@ exports.createPost = (req, res, next) => {
         error.statusCode = 422;
         throw error;
 
-
-
         // 1) each error handling
         // return res.status(422).json(
         //     { 
-    
         //         message: 'Validation failed. Entered data is incorrect.',
         //         // array() : a method of "errors" to extract error message out of array.
         //         errors: errors.array()
@@ -165,7 +159,6 @@ exports.createPost = (req, res, next) => {
 
     // console.log('req.file: ', req.file);
     const userId = req.userId;
-
     const title = req.body.title;
     const content = req.body.content;
 
@@ -192,20 +185,18 @@ exports.createPost = (req, res, next) => {
             return User.findById(userId);    
         })
         .then(user => {
-
             if(!user) {
                 const error = new Error('Unable to find the user who posted');
                 error.statusCode = 422;
                 throw error;
             }
-
             // console.log('user: ==========> ', user)
             creatorProfile = user;
             user.posts = [ ...user.posts, post ];
             return user.save();
-
         })
         .then(() => {
+            //console.log('user =============================> ', user)
             res.status(201).json({
                 message: 'Post created successfully',
                 post,
@@ -220,14 +211,11 @@ exports.createPost = (req, res, next) => {
             });
         })
         .catch(e => {
-            
             console.log('e at catch:', e);
-
             if(!e.statusCode) {
                 // server side error
                 e.statusCode = 500;
             }
-
             // need next to get to central errorhanding at routes.
             next(e);
 
@@ -237,6 +225,7 @@ exports.createPost = (req, res, next) => {
 
     // 201: success and resource was created.
     // 200: success! only.
+
 //     res.status(201).json({
 //         message: 'Post created successfully',
 //         post: {
@@ -252,6 +241,7 @@ exports.createPost = (req, res, next) => {
 exports.getPost = ((req, res, next) => {
     const postId = req.params.postId;
     Post.findById(postId)
+        .populate('creator')
         .then(post => {
             // if(!post) throw new Error('Unable  to find the post.');
             if(!post) {
@@ -259,23 +249,17 @@ exports.getPost = ((req, res, next) => {
                 error.statusCode = 404;
                 throw error;
             }
-
             res.status(200).json({ 
                 message: 'The post successfully fetched.',
                 post 
             });
-
         })
         .catch(e => {
-
             if(!e.statusCode) {
                 e.statusCode = 500;
             }
-
             next(e);
-
         });
-
 });
 
 exports.updatePost = (req, res, next) => {
@@ -322,6 +306,8 @@ exports.updatePost = (req, res, next) => {
 
             // Update will be enabled only with the user registered for.
             // The different logged-in user is not able to update the post.
+            //  ******************************************************************************** must compare userId and id in post!!!!
+            //  if it is not looking only for user by using findById(userId)
             if(post.creator.toString() !== userId) {
                 const error = new Error('The post is not for the current logged-in user');
                 error.statusCode = 403;
@@ -372,6 +358,8 @@ exports.deletePost= (req, res, next) => {
 
             // Update will be enabled only with the user registered for.
             // The different logged-in user is not able to update the post.
+            //  ******************************************************************************** must compare userId and id in post!!!!
+            //  if it is not looking only for user by using findById(userId)
             if(post.creator.toString() !== userId) {
                 const error = new Error('The post is not for the current logged-in user');
                 error.statusCode = 403;
@@ -416,6 +404,7 @@ const clearImage = filePath => {
     // filePath contains /images/fileName;
     console.log('filePath argument in clearImage function', filePath)
     filePath = path.join(__dirname, '..', filePath);
+    // ************** remove file!
     fs.unlink(filePath, err => {
         console.log(err);
     });

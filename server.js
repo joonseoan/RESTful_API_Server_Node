@@ -11,8 +11,8 @@ const { mongoKey } = require('./config/keys');
 const Mongo_URI = `mongodb+srv://joon:${mongoKey}@firstatlas-drwhc.mongodb.net/messages`;
 
 const app = express();
-// for incomming data!!!! based on json.
 
+// for incomming data!!!! based on json.
 // where the file is stored
 const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -20,11 +20,10 @@ const fileStorage = multer.diskStorage({
     cb(null, 'images')
   },
   filename: (req, file, cb) => {
-    //     // when using OSX
+    // when using OSX
     // cb(null, new Date().toISOString().replace(/:/g, '-')  + '-' + file.originalname);
     cb(null, uuidv4());
   }
-
 });
 
 // define image file extension.
@@ -38,7 +37,7 @@ const fileFilter = (req, file, cb) => {
 
 app.use(bodyParser.json());
 
-// [uploading]
+// [ uploading ]
 // define upload library
 // Accept a single file with the name "fieldName."" 
 // The single file will be stored in "req.file.""
